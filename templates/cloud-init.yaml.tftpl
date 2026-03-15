@@ -1,0 +1,298 @@
+#cloud-config
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - openjdk-21-jre-headless
+  - jq
+  - curl
+  - unzip
+  - fail2ban
+  - ufw
+  - unattended-upgrades
+  - apt-listchanges
+
+write_files:
+  # -------------------------------------------------------------------------
+  # server.properties
+  # -------------------------------------------------------------------------
+  - path: ${mc_dir}/server.properties
+    permissions: "0644"
+    content: |
+      server-port=${server_port}
+      motd=${motd}
+      max-players=${max_players}
+      difficulty=${difficulty}
+      gamemode=${gamemode}
+      level-seed=${seed}
+      online-mode=${online_mode}
+      white-list=${enable_whitelist}
+      enforce-whitelist=${enable_whitelist}
+      enable-query=false
+      enable-rcon=false
+      spawn-protection=16
+      view-distance=10
+      simulation-distance=10
+      max-tick-time=60000
+      network-compression-threshold=256
+%{ for key, value in server_properties ~}
+      ${key}=${value}
+%{ endfor ~}
+
+  # -------------------------------------------------------------------------
+  # eula.txt
+  # -------------------------------------------------------------------------
+  - path: ${mc_dir}/eula.txt
+    permissions: "0644"
+    content: |
+      eula=true
+
+%{ if length(ops) > 0 ~}
+  # -------------------------------------------------------------------------
+  # ops.json
+  # -------------------------------------------------------------------------
+  - path: ${mc_dir}/ops.json
+    permissions: "0644"
+    content: |
+      [
+%{ for i, op in ops ~}
+        {
+          "uuid": "00000000-0000-0000-0000-000000000000",
+          "name": "${op}",
+          "level": 4,
+          "bypassesPlayerLimit": true
+        }${ i < length(ops) - 1 ? "," : ""}
+%{ endfor ~}
+      ]
+%{ endif ~}
+
+  # -------------------------------------------------------------------------
+  # systemd service
+  # -------------------------------------------------------------------------
+  - path: /etc/systemd/system/minecraft.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Minecraft Server (PaperMC)
+      After=network.target
+      Wants=network-online.target
+
+      [Service]
+      User=minecraft
+      Group=minecraft
+      WorkingDirectory=${mc_dir}
+      ExecStart=/usr/bin/java \
+        -Xms${memory_min} -Xmx${memory_max} \
+        -XX:+AlwaysPreTouch \
+        -XX:+DisableExplicitGC \
+        -XX:+ParallelRefProcEnabled \
+        -XX:+PerfDisableSharedMem \
+        -XX:+UnlockExperimentalVMOptions \
+        -XX:+UseG1GC \
+        -XX:G1HeapRegionSize=8M \
+        -XX:G1HeapWastePercent=5 \
+        -XX:G1MaxNewSizePercent=40 \
+        -XX:G1MixedGCCountTarget=4 \
+        -XX:G1MixedGCLiveThresholdPercent=90 \
+        -XX:G1NewSizePercent=30 \
+        -XX:G1RSetUpdatingPauseTimePercent=5 \
+        -XX:G1ReservePercent=20 \
+        -XX:InitiatingHeapOccupancyPercent=15 \
+        -XX:MaxGCPauseMillis=200 \
+        -XX:MaxTenuringThreshold=1 \
+        -XX:SurvivorRatio=32 \
+        -Dusing.aikars.flags=https://mcflags.emc.gs \
+        -Daikars.new.flags=true \
+        ${jvm_flags} \
+        -jar paper.jar --nogui
+      ExecStop=/bin/kill -SIGTERM $MAINPID
+      Restart=on-failure
+      RestartSec=10
+      StandardOutput=journal
+      StandardError=journal
+      SyslogIdentifier=minecraft
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # -------------------------------------------------------------------------
+  # fail2ban jail for SSH
+  # -------------------------------------------------------------------------
+  - path: /etc/fail2ban/jail.local
+    permissions: "0644"
+    content: |
+      [DEFAULT]
+      bantime = 3600
+      findtime = 600
+      maxretry = 5
+      backend = systemd
+
+      [sshd]
+      enabled = true
+      port = ssh
+      filter = sshd
+      maxretry = 3
+
+  # -------------------------------------------------------------------------
+  # unattended-upgrades config
+  # -------------------------------------------------------------------------
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    permissions: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+
+  - path: /etc/apt/apt.conf.d/50unattended-upgrades
+    permissions: "0644"
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+        "$${distro_id}:$${distro_codename}";
+        "$${distro_id}:$${distro_codename}-security";
+        "$${distro_id}ESMApps:$${distro_codename}-apps-security";
+        "$${distro_id}ESM:$${distro_codename}-infra-security";
+      };
+      Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+      Unattended-Upgrade::Automatic-Reboot "false";
+
+%{ if backup_enabled ~}
+  # -------------------------------------------------------------------------
+  # backup script
+  # -------------------------------------------------------------------------
+  - path: /opt/minecraft-backup.sh
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      BACKUP_DIR="${mc_dir}/backups"
+      WORLD_DIR="${mc_dir}/world"
+      TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+      mkdir -p "$BACKUP_DIR"
+
+      if [ -d "$WORLD_DIR" ]; then
+        tar -czf "$BACKUP_DIR/world-$TIMESTAMP.tar.gz" -C "${mc_dir}" world
+        find "$BACKUP_DIR" -name "world-*.tar.gz" -mtime +${backup_retention_days} -delete
+      fi
+%{ endif ~}
+
+  # -------------------------------------------------------------------------
+  # setup script
+  # -------------------------------------------------------------------------
+  - path: /opt/minecraft-setup.sh
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      MC_DIR="${mc_dir}"
+
+      # create minecraft user
+      if ! id -u minecraft &>/dev/null; then
+        useradd -r -m -d /home/minecraft -s /bin/bash minecraft
+      fi
+
+%{ if volume_enabled ~}
+      # wait for volume mount
+      for i in $(seq 1 30); do
+        if mountpoint -q "${mount_path}" 2>/dev/null; then
+          break
+        fi
+        sleep 2
+      done
+      mkdir -p "$MC_DIR"
+%{ endif ~}
+
+      # download papermc
+      cd "$MC_DIR"
+
+      PAPER_BUILD="${paper_build}"
+      if [ "$PAPER_BUILD" = "latest" ]; then
+        PAPER_BUILD=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/${minecraft_version}/builds" \
+          | jq -r '.builds[-1].number')
+      fi
+
+      PAPER_JAR="paper-${minecraft_version}-$PAPER_BUILD.jar"
+      if [ ! -f "paper.jar" ] || [ ! -f ".$PAPER_JAR.marker" ]; then
+        curl -sfLo paper.jar \
+          "https://api.papermc.io/v2/projects/paper/versions/${minecraft_version}/builds/$PAPER_BUILD/downloads/$PAPER_JAR"
+        touch ".$PAPER_JAR.marker"
+      fi
+
+      # accept eula
+      echo "eula=true" > eula.txt
+
+      mkdir -p plugins
+
+%{ if enable_bedrock ~}
+      # download geyser
+      if [ ! -f plugins/Geyser-Spigot.jar ]; then
+        GEYSER_URL=$(curl -sf "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest" \
+          | jq -r '.downloads.spigot.url // empty')
+        if [ -n "$GEYSER_URL" ]; then
+          curl -sfLo plugins/Geyser-Spigot.jar "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/$GEYSER_URL"
+        else
+          curl -sfLo plugins/Geyser-Spigot.jar \
+            "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot"
+        fi
+      fi
+
+      # download floodgate
+      if [ ! -f plugins/floodgate-spigot.jar ]; then
+        FLOODGATE_URL=$(curl -sf "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest" \
+          | jq -r '.downloads.spigot.url // empty')
+        if [ -n "$FLOODGATE_URL" ]; then
+          curl -sfLo plugins/floodgate-spigot.jar "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/$FLOODGATE_URL"
+        else
+          curl -sfLo plugins/floodgate-spigot.jar \
+            "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot"
+        fi
+      fi
+%{ endif ~}
+
+%{ for url in plugins ~}
+      # download plugin
+      PLUGIN_FILE=$(basename "${url}" | sed 's/?.*//')
+      if [ ! -f "plugins/$PLUGIN_FILE" ]; then
+        curl -sfLo "plugins/$PLUGIN_FILE" "${url}"
+      fi
+%{ endfor ~}
+
+      # set ownership
+      chown -R minecraft:minecraft "$MC_DIR"
+%{ if volume_enabled ~}
+      chown -R minecraft:minecraft "${mount_path}"
+%{ endif ~}
+
+      # configure firewall
+      ufw default deny incoming
+      ufw default allow outgoing
+      ufw allow 22/tcp
+      ufw allow ${server_port}/tcp
+%{ if enable_bedrock ~}
+      ufw allow ${bedrock_port}/udp
+%{ endif ~}
+      ufw --force enable
+
+      # enable and start services
+      systemctl daemon-reload
+      systemctl enable fail2ban
+      systemctl restart fail2ban
+      systemctl enable minecraft
+      systemctl start minecraft
+
+%{ if backup_enabled ~}
+      # setup backup cron
+      (crontab -l 2>/dev/null || true; echo "0 4 * * * /opt/minecraft-backup.sh") | sort -u | crontab -
+%{ endif ~}
+
+      # harden ssh
+      sed -i 's/#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+      sed -i 's/#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+      sed -i 's/#\?X11Forwarding.*/X11Forwarding no/' /etc/ssh/sshd_config
+      systemctl restart sshd
+
+runcmd:
+  - /opt/minecraft-setup.sh
