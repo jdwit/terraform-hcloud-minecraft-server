@@ -4,7 +4,9 @@ package_update: true
 package_upgrade: true
 
 packages:
+%{ if game_server ~}
   - openjdk-21-jre-headless
+%{ endif ~}
   - jq
   - curl
   - unzip
@@ -14,6 +16,7 @@ packages:
   - apt-listchanges
 
 write_files:
+%{ if game_server ~}
   # -------------------------------------------------------------------------
   # server.properties
   # -------------------------------------------------------------------------
@@ -115,6 +118,7 @@ write_files:
 
       [Install]
       WantedBy=multi-user.target
+%{ endif ~}
 
   # -------------------------------------------------------------------------
   # fail2ban jail for SSH
@@ -157,7 +161,7 @@ write_files:
       Unattended-Upgrade::Remove-Unused-Dependencies "true";
       Unattended-Upgrade::Automatic-Reboot "false";
 
-%{ if backup_enabled ~}
+%{ if game_server && backup_enabled ~}
   # -------------------------------------------------------------------------
   # backup script
   # -------------------------------------------------------------------------
@@ -189,6 +193,7 @@ write_files:
 
       MC_DIR="${mc_dir}"
 
+%{ if game_server ~}
       # create minecraft user
       if ! id -u minecraft &>/dev/null; then
         useradd -r -m -d /home/minecraft -s /bin/bash minecraft
@@ -265,14 +270,23 @@ write_files:
 %{ if volume_enabled ~}
       chown -R minecraft:minecraft "${mount_path}"
 %{ endif ~}
+%{ endif ~}
 
       # configure firewall
       ufw default deny incoming
       ufw default allow outgoing
       ufw allow 22/tcp
+%{ if game_server ~}
       ufw allow ${server_port}/tcp
 %{ if enable_bedrock ~}
       ufw allow ${bedrock_port}/udp
+%{ endif ~}
+%{ endif ~}
+%{ if mcsmanager_panel ~}
+      ufw allow ${mcsmanager_port}/tcp
+%{ endif ~}
+%{ if mcsmanager_daemon ~}
+      ufw allow 24444/tcp
 %{ endif ~}
       ufw --force enable
 
@@ -280,10 +294,12 @@ write_files:
       systemctl daemon-reload
       systemctl enable fail2ban
       systemctl restart fail2ban
+%{ if game_server ~}
       systemctl enable minecraft
       systemctl start minecraft
+%{ endif ~}
 
-%{ if backup_enabled ~}
+%{ if game_server && backup_enabled ~}
       # setup backup cron
       (crontab -l 2>/dev/null || true; echo "0 4 * * * /opt/minecraft-backup.sh") | sort -u | crontab -
 %{ endif ~}
@@ -293,6 +309,30 @@ write_files:
       sed -i 's/#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
       sed -i 's/#\?X11Forwarding.*/X11Forwarding no/' /etc/ssh/sshd_config
       systemctl restart sshd
+
+%{ if mcsmanager_panel || mcsmanager_daemon ~}
+      # install mcsmanager
+      wget -qO- https://script.mcsmanager.com/setup.sh | bash
+
+%{ if mcsmanager_panel ~}
+      systemctl enable mcsm-web
+      systemctl start mcsm-web
+%{ endif ~}
+%{ if mcsmanager_daemon ~}
+      systemctl enable mcsm-daemon
+      systemctl start mcsm-daemon
+%{ endif ~}
+%{ if !mcsmanager_daemon ~}
+      # panel only: stop the daemon since we only need the web panel
+      systemctl disable mcsm-daemon || true
+      systemctl stop mcsm-daemon || true
+%{ endif ~}
+%{ if !mcsmanager_panel ~}
+      # daemon only: stop the web panel since we only need the daemon
+      systemctl disable mcsm-web || true
+      systemctl stop mcsm-web || true
+%{ endif ~}
+%{ endif ~}
 
 runcmd:
   - /opt/minecraft-setup.sh
