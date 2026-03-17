@@ -20,12 +20,12 @@ output "ipv6_address" {
 
 output "java_address" {
   description = "Connection address for Java Edition"
-  value       = "${hcloud_server.minecraft.ipv4_address}:${var.server_port}"
+  value       = var.game_server ? "${hcloud_server.minecraft.ipv4_address}:${var.server_port}" : null
 }
 
 output "bedrock_address" {
   description = "Connection address for Bedrock Edition (if enabled)"
-  value       = var.enable_bedrock ? "${hcloud_server.minecraft.ipv4_address}:${var.bedrock_port}" : null
+  value       = var.game_server && var.enable_bedrock ? "${hcloud_server.minecraft.ipv4_address}:${var.bedrock_port}" : null
 }
 
 output "ssh_command" {
@@ -36,4 +36,9 @@ output "ssh_command" {
 output "volume_id" {
   description = "Data volume ID (null if volume is disabled)"
   value       = var.volume_size > 0 ? hcloud_volume.data[0].id : null
+}
+
+output "panel_url" {
+  description = "MCSManager web panel URL (null if panel is not enabled)"
+  value       = var.mcsmanager_panel ? "http://${hcloud_server.minecraft.ipv4_address}:${var.mcsmanager_port}" : null
 }

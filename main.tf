@@ -6,6 +6,8 @@ locals {
 
   mc_dir     = var.volume_size > 0 ? "/mnt/data/minecraft" : "/opt/minecraft"
   mount_path = var.volume_size > 0 ? "/mnt/data" : ""
+
+  install_mcsmanager = var.mcsmanager_panel || var.mcsmanager_daemon
 }
 
 # -----------------------------------------------------------------------------
@@ -29,20 +31,45 @@ resource "hcloud_firewall" "minecraft" {
   }
 
   # Minecraft Java
-  rule {
-    direction  = "in"
-    protocol   = "tcp"
-    port       = tostring(var.server_port)
-    source_ips = ["0.0.0.0/0", "::/0"]
+  dynamic "rule" {
+    for_each = var.game_server ? [1] : []
+    content {
+      direction  = "in"
+      protocol   = "tcp"
+      port       = tostring(var.server_port)
+      source_ips = ["0.0.0.0/0", "::/0"]
+    }
   }
 
   # Minecraft Bedrock (UDP)
   dynamic "rule" {
-    for_each = var.enable_bedrock ? [1] : []
+    for_each = var.game_server && var.enable_bedrock ? [1] : []
     content {
       direction  = "in"
       protocol   = "udp"
       port       = tostring(var.bedrock_port)
+      source_ips = ["0.0.0.0/0", "::/0"]
+    }
+  }
+
+  # MCSManager web panel
+  dynamic "rule" {
+    for_each = var.mcsmanager_panel ? [1] : []
+    content {
+      direction  = "in"
+      protocol   = "tcp"
+      port       = tostring(var.mcsmanager_port)
+      source_ips = ["0.0.0.0/0", "::/0"]
+    }
+  }
+
+  # MCSManager daemon
+  dynamic "rule" {
+    for_each = var.mcsmanager_daemon ? [1] : []
+    content {
+      direction  = "in"
+      protocol   = "tcp"
+      port       = "24444"
       source_ips = ["0.0.0.0/0", "::/0"]
     }
   }
@@ -104,6 +131,11 @@ data "cloudinit_config" "minecraft" {
       backup_enabled        = var.backup_enabled
       backup_retention_days = var.backup_retention_days
       volume_enabled        = var.volume_size > 0
+      game_server           = var.game_server
+      mcsmanager_panel      = var.mcsmanager_panel
+      mcsmanager_daemon     = var.mcsmanager_daemon
+      mcsmanager_port       = var.mcsmanager_port
+      panel_host            = var.panel_host
     })
   }
 }

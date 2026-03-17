@@ -144,12 +144,95 @@ After deployment, you'll still need to:
 
 > **Note:** Most BedWars plugins are distributed through SpigotMC and require manual download. Add them to the plugins directory via SSH after first boot or host them somewhere accessible via URL.
 
+## MCSManager
+
+[MCSManager](https://mcsmanager.com/) is an open-source game server management panel that gives you a web UI for starting, stopping, monitoring, and configuring your Minecraft server. This module uses three boolean variables to control which components run on a given server: `game_server`, `mcsmanager_panel`, and `mcsmanager_daemon`. You can combine them freely to suit your deployment topology.
+
+### Default: game server only
+
+By default the module deploys just a Minecraft server with no management panel. This is the simplest setup and works well when you manage the server over SSH:
+
+```hcl
+module "minecraft" {
+  source  = "jdwit/minecraft-server/hcloud"
+  version = "~> 1.0"
+
+  name        = "mc-server"
+  server_type = "cx32"
+  location    = "nbg1"
+  ssh_keys    = ["my-ssh-key"]
+}
+```
+
+### All-in-one: game server with panel and daemon
+
+When you want a single machine that runs everything, enable all three booleans. The web panel and daemon run alongside the game server, so you can manage it from a browser at `http://<ip>:23333`:
+
+```hcl
+module "minecraft" {
+  source  = "jdwit/minecraft-server/hcloud"
+  version = "~> 1.0"
+
+  name              = "mc-server"
+  server_type       = "cx32"
+  location          = "nbg1"
+  ssh_keys          = ["my-ssh-key"]
+  game_server       = true
+  mcsmanager_panel  = true
+  mcsmanager_daemon = true
+}
+```
+
+### Pure panel
+
+A dedicated panel server runs only the MCSManager web UI without a game server or daemon. This is useful as the central management hub in a multi-node setup:
+
+```hcl
+module "panel" {
+  source  = "jdwit/minecraft-server/hcloud"
+  version = "~> 1.0"
+
+  name             = "mc-panel"
+  server_type      = "cx22"
+  location         = "nbg1"
+  ssh_keys         = ["my-ssh-key"]
+  game_server      = false
+  mcsmanager_panel = true
+}
+```
+
+### Managed node: game server with daemon
+
+A managed node runs a game server and the MCSManager daemon, which registers with a remote panel. Set `panel_host` to the IP of your panel server so the daemon knows where to connect:
+
+```hcl
+module "node" {
+  source  = "jdwit/minecraft-server/hcloud"
+  version = "~> 1.0"
+
+  name              = "mc-node-1"
+  server_type       = "cx32"
+  location          = "fsn1"
+  ssh_keys          = ["my-ssh-key"]
+  game_server       = true
+  mcsmanager_daemon = true
+  panel_host        = module.panel.ipv4_address
+}
+```
+
+After the node comes up, add it as a remote daemon in the MCSManager panel at `http://<panel-ip>:23333`. The daemon listens on port 24444 by default.
+
+### Multi-node example
+
+A complete multi-node deployment with a dedicated panel and game server node is in [`examples/multi-node/`](examples/multi-node/).
+
 ## Examples
 
 | Example | Description |
 |---------|-------------|
 | [basic](examples/basic/) | Simple survival server with Bedrock support |
 | [bedwars](examples/bedwars/) | BedWars minigame server with plugins |
+| [multi-node](examples/multi-node/) | Multi-server setup with MCSManager panel and node |
 
 ## Inputs
 
@@ -181,6 +264,11 @@ After deployment, you'll still need to:
 | `backup_enabled` | Enable daily backups | `bool` | `true` |
 | `backup_retention_days` | Backup retention | `number` | `7` |
 | `firewall_additional_rules` | Extra firewall rules | `list(object)` | `[]` |
+| `game_server` | Run a Minecraft game server | `bool` | `true` |
+| `mcsmanager_panel` | Run MCSManager web panel | `bool` | `false` |
+| `mcsmanager_daemon` | Run MCSManager daemon | `bool` | `false` |
+| `panel_host` | Panel IP (required when mcsmanager_daemon = true) | `string` | `""` |
+| `mcsmanager_port` | MCSManager web panel port | `number` | `23333` |
 | `labels` | Resource labels | `map(string)` | `{}` |
 | `volume_size` | Data volume size in GB (0 to disable) | `number` | `20` |
 
@@ -196,6 +284,7 @@ After deployment, you'll still need to:
 | `bedrock_address` | Bedrock Edition connection address |
 | `ssh_command` | SSH command |
 | `volume_id` | Data volume ID |
+| `panel_url` | MCSManager web panel URL |
 
 ## Server types
 

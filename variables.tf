@@ -169,6 +169,36 @@ variable "firewall_additional_rules" {
   default = []
 }
 
+variable "game_server" {
+  description = "Run a Minecraft game server"
+  type        = bool
+  default     = true
+}
+
+variable "mcsmanager_panel" {
+  description = "Run MCSManager web panel"
+  type        = bool
+  default     = false
+}
+
+variable "mcsmanager_daemon" {
+  description = "Run MCSManager daemon"
+  type        = bool
+  default     = false
+}
+
+variable "panel_host" {
+  description = "IP address of the MCSManager panel server (required when mcsmanager_daemon = true)"
+  type        = string
+  default     = ""
+}
+
+variable "mcsmanager_port" {
+  description = "MCSManager web panel port"
+  type        = number
+  default     = 23333
+}
+
 variable "labels" {
   description = "Labels to apply to all resources"
   type        = map(string)
