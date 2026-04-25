@@ -23,11 +23,11 @@ module "minecraft" {
   source = "../../"
 
   name        = "mc-server"
-  server_type = "cx32"
+  server_type = "cx33"
   location    = "nbg1"
-  ssh_keys    = ["my-ssh-key"]
+  ssh_keys    = ["minecraft-server"]
 
-  minecraft_version = "1.21.4"
+  minecraft_version = "1.21.11"
   memory_max        = "4G"
   motd              = "Welcome to our server!"
   max_players       = 10

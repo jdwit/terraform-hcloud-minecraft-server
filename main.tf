@@ -81,29 +81,31 @@ data "cloudinit_config" "minecraft" {
   part {
     content_type = "text/cloud-config"
     content = templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
-      mc_dir                = local.mc_dir
-      mount_path            = local.mount_path
-      minecraft_version     = var.minecraft_version
-      paper_build           = var.paper_build
-      server_port           = var.server_port
-      bedrock_port          = var.bedrock_port
-      enable_bedrock        = var.enable_bedrock
-      memory_min            = var.memory_min
-      memory_max            = var.memory_max
-      motd                  = var.motd
-      max_players           = var.max_players
-      difficulty            = var.difficulty
-      gamemode              = var.gamemode
-      seed                  = var.seed
-      online_mode           = var.online_mode
-      enable_whitelist      = var.enable_whitelist
-      ops                   = var.ops
-      server_properties     = var.server_properties
-      plugins               = var.plugins
-      jvm_flags             = var.jvm_flags
-      backup_enabled        = var.backup_enabled
-      backup_retention_days = var.backup_retention_days
-      volume_enabled        = var.volume_size > 0
+      mc_dir                    = local.mc_dir
+      mount_path                = local.mount_path
+      minecraft_version         = var.minecraft_version
+      paper_build               = var.paper_build
+      server_port               = var.server_port
+      bedrock_port              = var.bedrock_port
+      enable_bedrock            = var.enable_bedrock
+      memory_min                = var.memory_min
+      memory_max                = var.memory_max
+      motd                      = var.motd
+      max_players               = var.max_players
+      difficulty                = var.difficulty
+      gamemode                  = var.gamemode
+      seed                      = var.seed
+      online_mode               = var.online_mode
+      enable_whitelist          = var.enable_whitelist
+      ops                       = var.ops
+      server_properties         = var.server_properties
+      plugins                   = var.plugins
+      jvm_flags                 = var.jvm_flags
+      backup_enabled            = var.backup_enabled
+      backup_retention_days     = var.backup_retention_days
+      volume_enabled            = var.volume_size > 0
+      firewall_additional_rules = var.firewall_additional_rules
+      plugin_configs            = var.plugin_configs
     })
   }
 }

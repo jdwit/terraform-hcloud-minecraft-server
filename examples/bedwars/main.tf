@@ -33,9 +33,9 @@ module "minecraft" {
   name        = "mc-bedwars"
   server_type = "cx32"
   location    = "fsn1"
-  ssh_keys    = ["my-ssh-key"]
+  ssh_keys    = ["minecraft-server"]
 
-  minecraft_version = "1.21.4"
+  minecraft_version = "1.21.11"
   memory_min        = "2G"
   memory_max        = "6G"
   motd              = "\\u00A76\\u00A7lBedWars Server \\u00A7r\\u00A77- Join the fight!"

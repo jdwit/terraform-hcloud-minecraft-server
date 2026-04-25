@@ -5,7 +5,7 @@ variable "name" {
 }
 
 variable "server_type" {
-  description = "Hetzner Cloud server type (e.g. cx22, cx32, cx42)"
+  description = "Hetzner Cloud server type (e.g. cx23, cx33, cx43)"
   type        = string
   default     = "cx32"
 }
@@ -28,9 +28,9 @@ variable "ssh_keys" {
 }
 
 variable "minecraft_version" {
-  description = "Minecraft version for PaperMC (e.g. 1.21.4)"
+  description = "Minecraft version for PaperMC (e.g. 1.21.11)"
   type        = string
-  default     = "1.21.4"
+  default     = "1.21.11"
 }
 
 variable "paper_build" {
@@ -72,7 +72,7 @@ variable "memory_max" {
 variable "motd" {
   description = "Message of the day shown in the server list"
   type        = string
-  default     = "A Minecraft Server"
+  default     = "Minecraft on Hetzner Cloud"
 }
 
 variable "max_players" {
@@ -171,6 +171,12 @@ variable "firewall_additional_rules" {
 
 variable "labels" {
   description = "Labels to apply to all resources"
+  type        = map(string)
+  default     = {}
+}
+
+variable "plugin_configs" {
+  description = "Map of plugin-relative config file paths to file contents, written before plugins start. Keys are relative to the minecraft plugins/ directory (e.g. \"BlueMap/core.conf\")."
   type        = map(string)
   default     = {}
 }

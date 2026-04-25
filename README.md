@@ -1,12 +1,11 @@
 <p align="center">
-  <img src="hcloud-minecraft-cover.png" alt="terraform-hcloud-minecraft-server" width="100%" />
+  <img src="https://raw.githubusercontent.com/jdwit/terraform-hcloud-minecraft-server/refs/heads/main/hcloud-minecraft-cover.png" alt="terraform-hcloud-minecraft-server" width="100%" />
 </p>
 
 <p align="center">
   <a href="https://registry.terraform.io/modules/jdwit/minecraft-server/hcloud/latest"><img src="https://img.shields.io/badge/Terraform%20Registry-jdwit%2Fminecraft--server%2Fhcloud-844FBA?logo=terraform&logoColor=white" alt="Terraform Registry" /></a>
   <a href="https://github.com/jdwit/terraform-hcloud-minecraft-server/releases"><img src="https://img.shields.io/github/v/release/jdwit/terraform-hcloud-minecraft-server?logo=github&label=release" alt="GitHub release" /></a>
   <img src="https://img.shields.io/badge/terraform-%3E%3D%201.5-623CE4?logo=terraform&logoColor=white" alt="Terraform >= 1.5" />
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT" />
 </p>
 
 # terraform-hcloud-minecraft-server
@@ -41,7 +40,7 @@ module "minecraft" {
   location    = "nbg1"
   ssh_keys    = ["my-ssh-key"]
 
-  minecraft_version = "1.21.4"
+  minecraft_version = "1.21.11"
   motd              = "Welcome to our server!"
   max_players       = 10
 
@@ -161,6 +160,7 @@ After deployment, you'll still need to:
 |---------|-------------|
 | [basic](examples/basic/) | Simple survival server with Bedrock support |
 | [bedwars](examples/bedwars/) | BedWars minigame server with plugins |
+| [bluemap](examples/bluemap/) | Survival server with BlueMap 3D web map on port 8100 |
 
 ## Inputs
 
@@ -171,14 +171,14 @@ After deployment, you'll still need to:
 | `location` | Hetzner Cloud location | `string` | `"nbg1"` |
 | `image` | OS image | `string` | `"ubuntu-24.04"` |
 | `ssh_keys` | SSH key names or IDs | `list(string)` | required |
-| `minecraft_version` | Minecraft version | `string` | `"1.21.4"` |
+| `minecraft_version` | Minecraft version | `string` | `"1.21.11"` |
 | `paper_build` | PaperMC build number | `string` | `"latest"` |
 | `server_port` | Java Edition port | `number` | `25565` |
 | `bedrock_port` | Bedrock Edition port | `number` | `19132` |
 | `enable_bedrock` | Enable GeyserMC + Floodgate | `bool` | `true` |
 | `memory_min` | Min JVM heap | `string` | `"2G"` |
 | `memory_max` | Max JVM heap | `string` | `"4G"` |
-| `motd` | Server list message | `string` | `"A Minecraft Server"` |
+| `motd` | Server list message | `string` | `"Minecraft on Hetzner Cloud"` |
 | `max_players` | Maximum players | `number` | `20` |
 | `difficulty` | Difficulty level | `string` | `"normal"` |
 | `gamemode` | Default game mode | `string` | `"survival"` |
@@ -188,6 +188,7 @@ After deployment, you'll still need to:
 | `ops` | Operator usernames | `list(string)` | `[]` |
 | `server_properties` | Additional server.properties | `map(string)` | `{}` |
 | `plugins` | Plugin JAR URLs | `list(string)` | `[]` |
+| `plugin_configs` | Pre-populated plugin config files (path relative to `plugins/`) | `map(string)` | `{}` |
 | `jvm_flags` | Additional JVM flags | `string` | `""` |
 | `backup_enabled` | Enable daily backups | `bool` | `true` |
 | `backup_retention_days` | Backup retention | `number` | `7` |
@@ -214,10 +215,10 @@ Recommended Hetzner server types for Minecraft:
 
 | Type | vCPU | RAM | Use case |
 |------|------|-----|----------|
-| `cx22` | 2 | 4 GB | 1-5 players, testing |
-| `cx32` | 4 | 8 GB | 5-20 players, small SMP |
-| `cx42` | 8 | 16 GB | 20-50 players, minigames |
-| `cx52` | 16 | 32 GB | 50+ players, large networks |
+| `cx23` | 2 | 4 GB | 1-5 players, testing |
+| `cx33` | 4 | 8 GB | 5-20 players, small SMP |
+| `cx43` | 8 | 16 GB | 20-50 players, minigames |
+| `cx53` | 16 | 32 GB | 50+ players, large networks |
 
 ## Security
 
@@ -225,22 +226,6 @@ This module applies the following hardening measures:
 
 - Hetzner firewall: only SSH, Java, and Bedrock ports are open
 - UFW as host-level defense in depth
-- fail2ban for SSH brute-force protection (3 attempts, 1 hour ban)
-- SSH hardening: password auth disabled, root login via key only, X11 forwarding off
+- fail2ban for SSH brute-force protection (3 failed attempts within 10 minutes triggers a 1 hour ban)
+- SSH hardening: password authentication disabled, root login restricted to public-key auth, X11 forwarding off
 - Unattended upgrades for automatic security patches
-
-## Cost estimate
-
-Hetzner Cloud pricing (as of 2024, EUR/month):
-
-| Component | cx22 | cx32 | cx42 |
-|-----------|------|------|------|
-| Server | ~4.35 | ~7.55 | ~14.75 |
-| Volume (20 GB) | ~0.96 | ~0.96 | ~0.96 |
-| **Total** | **~5.31** | **~8.51** | **~15.71** |
-
-> Prices are approximate. Check [Hetzner pricing](https://www.hetzner.com/cloud) for current rates.
-
-## License
-
-MIT

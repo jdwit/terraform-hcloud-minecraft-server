@@ -195,13 +195,34 @@ write_files:
       fi
 
 %{ if volume_enabled ~}
-      # wait for volume mount
+      # hetzner automounts attached volumes at /mnt/HC_Volume_<id>; wait for
+      # it to appear, then expose at the canonical mount path via symlink.
+      HC_MOUNT=""
       for i in $(seq 1 30); do
-        if mountpoint -q "${mount_path}" 2>/dev/null; then
-          break
-        fi
+        for d in /mnt/HC_Volume_*; do
+          if [ -d "$d" ] && mountpoint -q "$d"; then
+            HC_MOUNT="$d"
+            break 2
+          fi
+        done
         sleep 2
       done
+
+      if [ -z "$HC_MOUNT" ]; then
+        echo "Hetzner volume not mounted within timeout" >&2
+        exit 1
+      fi
+
+      # cloud-init's write_files (init phase) may have populated ${mount_path}
+      # on the root filesystem before this final phase ran. Migrate any such
+      # files onto the volume and replace the directory with a symlink.
+      if [ -d "${mount_path}" ] && [ ! -L "${mount_path}" ]; then
+        if [ -n "$(ls -A "${mount_path}" 2>/dev/null)" ]; then
+          cp -a "${mount_path}/." "$HC_MOUNT/"
+        fi
+        rm -rf "${mount_path}"
+      fi
+      ln -sfn "$HC_MOUNT" "${mount_path}"
       mkdir -p "$MC_DIR"
 %{ endif ~}
 
@@ -211,7 +232,7 @@ write_files:
       PAPER_BUILD="${paper_build}"
       if [ "$PAPER_BUILD" = "latest" ]; then
         PAPER_BUILD=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/${minecraft_version}/builds" \
-          | jq -r '.builds[-1].number')
+          | jq -r '.builds[-1].build')
       fi
 
       PAPER_JAR="paper-${minecraft_version}-$PAPER_BUILD.jar"
@@ -274,6 +295,11 @@ write_files:
 %{ if enable_bedrock ~}
       ufw allow ${bedrock_port}/udp
 %{ endif ~}
+%{ for rule in firewall_additional_rules ~}
+%{ if rule.direction == "in" ~}
+      ufw allow ${replace(rule.port, "-", ":")}/${rule.protocol}
+%{ endif ~}
+%{ endfor ~}
       ufw --force enable
 
       # enable and start services
@@ -292,7 +318,14 @@ write_files:
       sed -i 's/#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
       sed -i 's/#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
       sed -i 's/#\?X11Forwarding.*/X11Forwarding no/' /etc/ssh/sshd_config
-      systemctl restart sshd
+      systemctl restart ssh
+
+%{ for path, content in plugin_configs ~}
+  - path: ${mc_dir}/plugins/${path}
+    permissions: "0644"
+    encoding: b64
+    content: ${base64encode(content)}
+%{ endfor ~}
 
 runcmd:
   - /opt/minecraft-setup.sh
