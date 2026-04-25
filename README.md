@@ -1,3 +1,14 @@
+<p align="center">
+  <img src="hcloud-minecraft-cover.png" alt="terraform-hcloud-minecraft-server" width="100%" />
+</p>
+
+<p align="center">
+  <a href="https://registry.terraform.io/modules/jdwit/minecraft-server/hcloud/latest"><img src="https://img.shields.io/badge/Terraform%20Registry-jdwit%2Fminecraft--server%2Fhcloud-844FBA?logo=terraform&logoColor=white" alt="Terraform Registry" /></a>
+  <a href="https://github.com/jdwit/terraform-hcloud-minecraft-server/releases"><img src="https://img.shields.io/github/v/release/jdwit/terraform-hcloud-minecraft-server?logo=github&label=release" alt="GitHub release" /></a>
+  <img src="https://img.shields.io/badge/terraform-%3E%3D%201.5-623CE4?logo=terraform&logoColor=white" alt="Terraform >= 1.5" />
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT" />
+</p>
+
 # terraform-hcloud-minecraft-server
 
 Terraform module for deploying a production-ready Minecraft server on [Hetzner Cloud](https://www.hetzner.com/cloud). Ships with PaperMC, optional Bedrock support (GeyserMC + Floodgate), plugin management, automated backups, and security hardening out of the box.
